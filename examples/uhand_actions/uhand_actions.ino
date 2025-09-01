@@ -3,7 +3,6 @@
 
 /* 引脚定义 */
 const static uint8_t servoPins[6] = { 7, 6, 5, 4, 3, 2 };//舵机引脚定义
-int action_index=2;  //需要执行的动作号，相关动作数据详见action数组（actions.h）
 
 //动作组控制对象
 HW_ACTION_CTL action_ctl;
@@ -43,7 +42,7 @@ void loop() {
 void user_task(void)
 {
   static uint32_t last_tick = 0;
-  if (millis() - last_tick < 100) {
+  if (millis() - last_tick < 2500) {
     return;
   }
   last_tick = millis();
@@ -52,8 +51,8 @@ void user_task(void)
   switch(step)
   {
     case 0:
-      //Action control
-      action_ctl.action_set(action_index);//Execute Action 
+      //Action group control
+      action_ctl.action_set(1);//Execute Action Group 1
       Serial.print("action run.");
       step = 1;
       break;
@@ -61,7 +60,7 @@ void user_task(void)
       if(action_ctl.action_state_get() == 0)
       {
         Serial.println("");
-        Serial.println("The action is running successfully!");
+        Serial.println("The action group is running successfully!");
       }else{
         Serial.print(" .");
       }
