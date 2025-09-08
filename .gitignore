@@ -1,5 +1,5 @@
 datasets
 */__pycache__/*
-models
+# models
 Chinese-number-gestures-recognition
 captured_images

@@ -21,6 +21,9 @@
         	- 数据集大小问题：MINIST数据集包含70000张手写数字；手势数据集在扩展前应该至少包含7000张手势图片，即一个手势需要约700张图片。
         	- 目前的数据集只支持右手、正手朝上、在浅色背景下的情况
         	- 目前网络上没有较为完整的手势数据集
+        	- 模型参数量 132,826，参数量与数据集比例应当在 1:5 ~ 1:50 之间，因此需要约 600,000 手势图片；实际数据 在 160，000左右，准确率达到 72.97%
+        	- 增加到 241,863 张手势图片，效果反而下降。
+        	- 缩减版模型参数量 42,362，数据量 67,066 张图片， Best Acc=56.76%
       	- 模型
 	- 体感手套数字识别
 - 游戏逻辑
@@ -50,7 +53,8 @@ python scripts\camera\get_img.py
 
 <!-- python scripts\datasets\binary_dataset.py --input datasets\camera_phone_raw --output datasets\camera_phone_bin --threshold 150 -->
 
-python scripts\gesture_recognition\data_preprocessing.py --input datasets\camera_phone_raw --output datasets\camera_phone_aug --target-size 64 64 --save-augmented --augmentation-factor 15
+<!-- python scripts\gesture_recognition\data_preprocessing.py --input datasets\camera_phone_raw --output datasets\camera_phone_aug --target-size 64 64 --save-augmented --augmentation-factor 15 -->
+python scripts\gesture_recognition\data_preprocessing.py --input datasets\camera_phone_raw --output datasets\camera_phone_aug --target-size 64 64 --save-augmented --augmentation-factor 10
 
 python scripts\datasets\merge_dataset.py --augmented-dir datasets\camera_phone_aug\augmented_dataset --target-dir datasets\train --mode copy 
 
@@ -60,7 +64,7 @@ python train.py
 
 
 ## **inference**
-python inference.py --model models\best-7297\cnn_gesture_best.pth --mode image --input datasets\camera_phone_raw\img3\4e03616b4571d502e9e3d01c51e444a.jpg
+python inference.py --model models\best-7297\cnn_gesture_best.pth --mode image --input datasets\camera_phone_aug\augmented_dataset\img3\img3_000039.jpg
 
 
 
