@@ -4,7 +4,7 @@ This script loads a trained model and performs predictions on new images.
 """
 
 '''
-python inference.py --model models/cnn_gesture.pth --mode image --input datasets\resized_img_split\resized_img5\4_2_0_48.jpg
+python inference.py --model models/cnn_gesture_best.pth --mode image --input 4b31af7fd7792e4dd775042dcad500a.jpg
 '''
 
 import torch
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Gesture class names (0-10 for Chinese number gestures)
 GESTURE_CLASSES = {
         0: "0", 1: "1", 2: "2", 3: "3", 4: "4",
-        5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10"
+        5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 
     }
 
 
@@ -46,7 +46,7 @@ class GesturePredictor:
             self.device = torch.device(device)
             
         # Initialize and load the model
-        self.model = CNNGestureRecognizer(num_classes=11)
+        self.model = CNNGestureRecognizer(num_classes=10)
         self.load_model(model_path)
         self.model.eval()
         

@@ -76,16 +76,18 @@ class GestureDataset(Dataset):
 
 class CNNGestureRecognizer(nn.Module):
     """
-    CNN model for Chinese number gesture recognition.
+    Lightweight CNN model for Chinese number gesture recognition.
     
     Architecture:
-    - Conv2D(3->32) + ReLU + MaxPool
-    - Conv2D(32->64) + ReLU + MaxPool
-    - Fully Connected(16*16*64->200) + ReLU + Dropout
-    - Fully Connected(200->11) + Softmax
+    - Conv2D(3->8) + ReLU + MaxPool
+    - Conv2D(8->16) + ReLU + MaxPool  
+    - Fully Connected(16*16*16->32) + ReLU + Dropout
+    - Fully Connected(32->10) + Softmax
+    
+    Total parameters: ~133k (大幅减少，适合16万张图片的数据集)
     """
     
-    def __init__(self, num_classes: int = 11, dropout_rate: float = 0.5):
+    def __init__(self, num_classes: int = 10, dropout_rate: float = 0.5):
         """
         Initialize the CNN model.
         
@@ -95,19 +97,37 @@ class CNNGestureRecognizer(nn.Module):
         """
         super(CNNGestureRecognizer, self).__init__()
         
-        # Convolutional layers
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, padding=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=5, padding=2)
+        # # Convolutional layers
+        # self.conv1 = nn.Conv2d(3, 32, kernel_size=5, padding=2)
+        # self.conv2 = nn.Conv2d(32, 64, kernel_size=5, padding=2)
+        
+        # # Pooling layer
+        # self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        # # Fully connected layers
+        # self.fc1 = nn.Linear(16 * 16 * 64, 200)
+        # self.fc2 = nn.Linear(200, num_classes)
+        
+        # # Dropout for regularization
+        # self.dropout = nn.Dropout(dropout_rate)
+
+        # Lightweight model version - 大幅减少参数量
+        # 第一个卷积层：3->8 (减少通道数)
+        self.conv1 = nn.Conv2d(3, 8, kernel_size=3, padding=1)  # 3 -> 8, 使用3x3卷积核
+        # 第二个卷积层：8->16 (继续减少通道数)
+        self.conv2 = nn.Conv2d(8, 16, kernel_size=3, padding=1)  # 8 -> 16
         
         # Pooling layer
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         
-        # Fully connected layers
-        self.fc1 = nn.Linear(16 * 16 * 64, 200)
-        self.fc2 = nn.Linear(200, num_classes)
+        # 全连接层大幅减少
+        # 经过两次池化后：64->32->16，所以特征图大小是16x16x16
+        self.fc1 = nn.Linear(16 * 16 * 16, 32)  # 16x16x16 -> 32 (大幅减少)
+        self.fc2 = nn.Linear(32, num_classes)   # 32 -> 10
         
         # Dropout for regularization
         self.dropout = nn.Dropout(dropout_rate)
+  
         
         # Initialize weights
         self._initialize_weights()
@@ -134,16 +154,16 @@ class CNNGestureRecognizer(nn.Module):
             Output logits of shape (batch_size, num_classes)
         """
         # First convolutional block
-        x = self.pool(F.relu(self.conv1(x)))  # (batch_size, 32, 32, 32)
+        x = self.pool(F.relu(self.conv1(x)))  # (batch_size, 8, 32, 32)
         
         # Second convolutional block
-        x = self.pool(F.relu(self.conv2(x)))  # (batch_size, 64, 16, 16)
+        x = self.pool(F.relu(self.conv2(x)))  # (batch_size, 16, 16, 16)
         
         # Flatten for fully connected layers
-        x = x.view(-1, 16 * 16 * 64)  # (batch_size, 16384)
+        x = x.view(-1, 16 * 16 * 16)  # (batch_size, 4096)
         
         # First fully connected layer with dropout
-        x = self.dropout(F.relu(self.fc1(x)))  # (batch_size, 200)
+        x = self.dropout(F.relu(self.fc1(x)))  # (batch_size, 32)
         
         # Output layer
         x = self.fc2(x)  # (batch_size, num_classes)
@@ -225,7 +245,7 @@ class GestureTrainer:
     
     def train(self, train_loader: DataLoader, test_loader: DataLoader,
               num_epochs: int = 100, learning_rate: float = 0.001,
-              weight_decay: float = 1e-4) -> Dict:
+              weight_decay: float = 1e-4, best_model_path: str = None) -> Dict:
         """
         Train the model.
         
@@ -235,6 +255,7 @@ class GestureTrainer:
             num_epochs: Number of training epochs
             learning_rate: Learning rate for optimizer
             weight_decay: L2 regularization weight
+            best_model_path: Path to save the best model (optional)
             
         Returns:
             Dictionary containing training history
@@ -248,6 +269,10 @@ class GestureTrainer:
             'test_loss': [],
             'test_accuracy': []
         }
+        
+        # Initialize best model tracking
+        best_accuracy = 0.0
+        best_epoch = 0
         
         logger.info(f"Starting training for {num_epochs} epochs...")
         start_time = time.time()
@@ -266,12 +291,24 @@ class GestureTrainer:
             history['train_loss'].append(train_loss)
             history['test_loss'].append(test_loss)
             history['test_accuracy'].append(test_accuracy)
+
+            # Check if this is the best model after epoch 5
+            # if epoch >= 5 and test_accuracy > best_accuracy:
+            if test_accuracy > best_accuracy:
+                best_accuracy = test_accuracy
+                best_epoch = epoch + 1
+                
+                # Save best model if path is provided
+                if best_model_path:
+                    self.save_model(best_model_path, epoch=best_epoch, accuracy=best_accuracy)
+                    logger.info(f"New best model saved! Accuracy: {best_accuracy:.2f}% at epoch {best_epoch}")
             
             # Update epoch progress bar
             epoch_pbar.set_postfix({
                 'Train Loss': f'{train_loss:.4f}',
                 'Test Loss': f'{test_loss:.4f}', 
-                'Test Acc': f'{test_accuracy:.2f}%'
+                'Test Acc': f'{test_accuracy:.2f}%',
+                'Best Acc': f'{best_accuracy:.2f}%'
             })
             
             # Log progress less frequently
@@ -279,20 +316,31 @@ class GestureTrainer:
                 logger.info(f"Epoch [{epoch+1}/{num_epochs}] - "
                            f"Train Loss: {train_loss:.4f}, "
                            f"Test Loss: {test_loss:.4f}, "
-                           f"Test Accuracy: {test_accuracy:.2f}%")
+                           f"Test Accuracy: {test_accuracy:.2f}% "
+                           f"(Best: {best_accuracy:.2f}% at epoch {best_epoch})")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.2f} seconds")
+        logger.info(f"Best accuracy: {best_accuracy:.2f}% achieved at epoch {best_epoch}")
         
         return history
     
-    def save_model(self, save_path: str):
+    def save_model(self, save_path: str, epoch: int = None, accuracy: float = None):
         """Save the trained model."""
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        torch.save({
+        
+        save_dict = {
             'model_state_dict': self.model.state_dict(),
             'model_architecture': type(self.model).__name__
-        }, save_path)
+        }
+        
+        # Add optional metadata
+        if epoch is not None:
+            save_dict['epoch'] = epoch
+        if accuracy is not None:
+            save_dict['accuracy'] = accuracy
+            
+        torch.save(save_dict, save_path)
         logger.info(f"Model saved to {save_path}")
     
     def load_model(self, load_path: str):
@@ -307,7 +355,7 @@ def load_dataset_from_folders(data_dir: str = "../../datasets/captured") -> Tupl
     Load the gesture recognition dataset from folder structure.
     
     Args:
-        data_dir: Path to the directory containing class folders (img0, img1, ..., img10)
+        data_dir: Path to the directory containing class folders (img0, img1, ..., img9)
         
     Returns:
         Tuple of (train_paths, test_paths, train_labels, test_labels)
@@ -319,15 +367,15 @@ def load_dataset_from_folders(data_dir: str = "../../datasets/captured") -> Tupl
         raise FileNotFoundError(f"Dataset directory not found: {data_dir}")
     
     # Define class mapping
-    # class_mapping = {
-    #     'img0': 0, 'img1': 1, 'img2': 2, 'img3': 3, 'img4': 4,
-    #     'img5': 5, 'img6': 6, 'img7': 7, 'img8': 8, 'img9': 9, 'img10': 10
-    # }
-
     class_mapping = {
-        'resized_img0': 0, 'resized_img1': 1, 'resized_img2': 2, 'resized_img3': 3, 'resized_img4': 4,
-        'resized_img5': 5, 'resized_img6': 6, 'resized_img7': 7, 'resized_img8': 8, 'resized_img9': 9, 'resized_img10': 10
+        'img0': 0, 'img1': 1, 'img2': 2, 'img3': 3, 'img4': 4,
+        'img5': 5, 'img6': 6, 'img7': 7, 'img8': 8, 'img9': 9, 
     }
+
+    # class_mapping = {
+    #     'resized_img0': 0, 'resized_img1': 1, 'resized_img2': 2, 'resized_img3': 3, 'resized_img4': 4,
+    #     'resized_img5': 5, 'resized_img6': 6, 'resized_img7': 7, 'resized_img8': 8, 'resized_img9': 9, 
+    # }
     
     image_paths = []
     labels = []
@@ -358,13 +406,18 @@ def load_dataset_from_folders(data_dir: str = "../../datasets/captured") -> Tupl
     logger.info(f"Class distribution: {np.bincount(labels)}")
     
     # Split into training and testing sets
-    train_paths, test_paths, train_labels, test_labels = train_test_split(
-        image_paths, labels, train_size=0.9, test_size=0.1, random_state=42, stratify=labels
-    )
+    # train_paths, test_paths, train_labels, test_labels = train_test_split(
+    #     image_paths, labels, train_size=0.9, test_size=0.1, random_state=42, stratify=labels
+    # )
+
+    train_paths = image_paths
+    train_labels = labels
     
-    logger.info(f"Train samples: {len(train_paths)}, Test samples: {len(test_paths)}")
+    # logger.info(f"Train samples: {len(train_paths)}, Test samples: {len(test_paths)}")
+    logger.info(f"Data samples: {len(train_paths)}")
     
-    return train_paths, test_paths, train_labels, test_labels
+    # return train_paths, test_paths, train_labels, test_labels
+    return train_paths, train_labels 
 
 
 def plot_training_history(history: Dict, save_path: str = None):
@@ -400,21 +453,29 @@ def main():
     """Main training function."""
     # Configuration
     config = {
-        'data_dir': r'datasets\resized_img_split',
+        'data_dir': r'datasets\train',
+        # 'data_dir': r'D:\Zhou\04Learning\03Tsinghua\Electronic_Design\uHand\uHandNumberGame\datasets\camera_phone_aug\augmented_dataset',
+        'test_dir': r'datasets\test',
         'batch_size': 16,
-        'num_epochs': 50,
+        'num_epochs': 20, # 50
         'learning_rate': 0.001,
         'weight_decay': 1e-4,
         'dropout_rate': 0.5,
-        'model_save_path': 'models/cnn_gesture.pth'
+        'model_save_path': 'models/cnn_gesture.pth',
+        'best_model_path': 'models/cnn_gesture_best.pth'
     }
     
     # Create directories if they don't exist
     os.makedirs('models', exist_ok=True)
     
     # Load dataset
-    train_paths, test_paths, train_labels, test_labels = load_dataset_from_folders(config['data_dir'])
-    
+    # Split test from train:
+    # train_paths, test_paths, train_labels, test_labels = load_dataset_from_folders(config['data_dir'])
+
+    # Explicitly load train and test datasets:
+    train_paths, train_labels = load_dataset_from_folders(config['data_dir'])
+    test_paths, test_labels = load_dataset_from_folders(config['test_dir'])
+
     # Create datasets and data loaders
     train_dataset = GestureDataset(train_paths, train_labels)
     test_dataset = GestureDataset(test_paths, test_labels)
@@ -425,7 +486,7 @@ def main():
                             shuffle=False, num_workers=0)
     
     # Create model and trainer
-    model = CNNGestureRecognizer(num_classes=11, dropout_rate=config['dropout_rate'])
+    model = CNNGestureRecognizer(num_classes=10, dropout_rate=config['dropout_rate'])
     trainer = GestureTrainer(model)
     
     # Print model summary
@@ -439,18 +500,19 @@ def main():
         test_loader=test_loader,
         num_epochs=config['num_epochs'],
         learning_rate=config['learning_rate'],
-        weight_decay=config['weight_decay']
+        weight_decay=config['weight_decay'],
+        best_model_path=config['best_model_path']
     )
-    
-    # Save the model
-    trainer.save_model(config['model_save_path'])
-    
-    # Plot training history
-    plot_training_history(history, 'models/training_history.png')
     
     # Final evaluation
     final_loss, final_accuracy = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
     logger.info(f"Final Test Accuracy: {final_accuracy:.2f}%")
+    
+    # Save the final model with metadata
+    trainer.save_model(config['model_save_path'], epoch=config['num_epochs'], accuracy=final_accuracy)
+    
+    # Plot training history
+    plot_training_history(history, 'models/training_history.png')
 
 
 if __name__ == "__main__":

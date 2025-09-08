@@ -134,7 +134,18 @@ class DataPreprocessor:
         
         Args:
             image: Input image
-            augmentation_params: Augmentation parameters
+            augmentation_params: Augmentation parameters dictionary containing:
+                - rotation_range: Range for random rotation in degrees
+                - brightness_range: Tuple (min, max) for brightness scaling
+                - horizontal_flip: Boolean for random horizontal flipping
+                - noise_factor: Standard deviation for Gaussian noise
+                - color_temperature: Range for color temperature shift (0.0-1.0)
+                  Positive values make image warmer (more yellow/red)
+                  Negative values make image cooler (more blue)
+                - hue_shift: Range for hue shift in degrees (0-180)
+                  Shifts the overall color hue in HSV space
+                - color_tint: Range for color tint adjustment (0.0-1.0)
+                  Positive values add green tint, negative adds magenta tint
             
         Returns:
             Augmented image
@@ -164,6 +175,44 @@ class DataPreprocessor:
         if 'noise_factor' in augmentation_params and augmentation_params['noise_factor'] > 0:
             noise = np.random.normal(0, augmentation_params['noise_factor'], augmented.shape)
             augmented = np.clip(augmented + noise, 0, 255).astype(np.uint8)
+        
+        # Color temperature adjustment (warm/cool)
+        if 'color_temperature' in augmentation_params and augmentation_params['color_temperature'] > 0:
+            temp_factor = np.random.uniform(-augmentation_params['color_temperature'], 
+                                          augmentation_params['color_temperature'])
+            # Warm (positive): increase red, decrease blue
+            # Cool (negative): decrease red, increase blue
+            if temp_factor > 0:  # Warmer (more yellow/red)
+                augmented[:, :, 0] = np.clip(augmented[:, :, 0] * (1 + temp_factor * 0.3), 0, 255)  # Red
+                augmented[:, :, 2] = np.clip(augmented[:, :, 2] * (1 - temp_factor * 0.2), 0, 255)  # Blue
+            else:  # Cooler (more blue)
+                augmented[:, :, 0] = np.clip(augmented[:, :, 0] * (1 + temp_factor * 0.2), 0, 255)  # Red
+                augmented[:, :, 2] = np.clip(augmented[:, :, 2] * (1 - temp_factor * 0.3), 0, 255)  # Blue
+            augmented = augmented.astype(np.uint8)
+        
+        # Color hue shift (green/magenta)
+        if 'hue_shift' in augmentation_params and augmentation_params['hue_shift'] > 0:
+            # Convert to HSV for hue adjustment
+            hsv = cv2.cvtColor(augmented, cv2.COLOR_RGB2HSV)
+            hue_delta = np.random.uniform(-augmentation_params['hue_shift'], 
+                                        augmentation_params['hue_shift'])
+            # Adjust hue channel (wrap around 0-179 in OpenCV HSV)
+            hsv[:, :, 0] = (hsv[:, :, 0] + hue_delta) % 180
+            augmented = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+        
+        # Color tint (green/magenta bias in RGB)
+        if 'color_tint' in augmentation_params and augmentation_params['color_tint'] > 0:
+            tint_factor = np.random.uniform(-augmentation_params['color_tint'], 
+                                          augmentation_params['color_tint'])
+            if tint_factor > 0:  # Green tint
+                augmented[:, :, 1] = np.clip(augmented[:, :, 1] * (1 + tint_factor * 0.2), 0, 255)  # Green
+                augmented[:, :, 0] = np.clip(augmented[:, :, 0] * (1 - tint_factor * 0.1), 0, 255)  # Red
+                augmented[:, :, 2] = np.clip(augmented[:, :, 2] * (1 - tint_factor * 0.1), 0, 255)  # Blue
+            else:  # Magenta tint
+                augmented[:, :, 1] = np.clip(augmented[:, :, 1] * (1 + tint_factor * 0.2), 0, 255)  # Green
+                augmented[:, :, 0] = np.clip(augmented[:, :, 0] * (1 - tint_factor * 0.1), 0, 255)  # Red
+                augmented[:, :, 2] = np.clip(augmented[:, :, 2] * (1 - tint_factor * 0.1), 0, 255)  # Blue
+            augmented = augmented.astype(np.uint8)
         
         return augmented
     
@@ -274,43 +323,139 @@ class DataPreprocessor:
 
 
 def prepare_chinese_gesture_dataset(root_dir: str, output_dir: str,
-                                   augment: bool = True):
+                                   augment: bool = True, augmentation_factor: int = 3,
+                                   save_augmented: bool = False):
     """
-    Prepare the Chinese gesture dataset and save info (no longer creates HDF5 files).
+    Prepare the Chinese gesture dataset with optional data augmentation.
     
     Args:
         root_dir: Root directory containing gesture images
-        output_dir: Output directory for dataset info
-        augment: Whether to apply data augmentation (for info only)
+        output_dir: Output directory for dataset info and augmented images
+        augment: Whether to apply data augmentation
+        augmentation_factor: Number of augmented versions per original image
+        save_augmented: Whether to save augmented images to disk
     """
     # Class mapping for Chinese number gestures
     class_mapping = {
         'img0': 0, 'img1': 1, 'img2': 2, 'img3': 3, 'img4': 4,
-        'img5': 5, 'img6': 6, 'img7': 7, 'img8': 8, 'img9': 9, 'img10': 10
+        'img5': 5, 'img6': 6, 'img7': 7, 'img8': 8, 'img9': 9, 
     }
     
     class_names = {
         0: "0", 1: "1", 2: "2", 3: "3", 4: "4",
-        5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10"
+        5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 
+    }
+    
+    # Data augmentation parameters
+    augmentation_params = {
+        'rotation_range': 15,
+        'brightness_range': (0.8, 1.2),
+        'horizontal_flip': True,
+        'noise_factor': 5,
+        'color_temperature': 0.3,  # Color temperature shift (warm/cool)
+        'hue_shift': 10,          # Hue shift in degrees (0-180)
+        'color_tint': 0.2         # Color tint (green/magenta bias)
     }
     
     # Initialize preprocessor
     preprocessor = DataPreprocessor(target_size=(64, 64))
     
-    # Load images to get statistics
-    logger.info("Analyzing dataset structure...")
+    # Load original images
+    logger.info("Loading original dataset...")
     images, labels = preprocessor.load_images_from_directory(root_dir, class_mapping)
     
-    # Visualize samples
-    logger.info("Visualizing sample images...")
+    # Visualize original samples
+    logger.info("Visualizing original sample images...")
     preprocessor.visualize_samples(images, labels, num_samples=16, class_names=class_names)
     
-    # Save dataset information
-    preprocessor.save_dataset_info(images, labels, output_dir)
+    # Apply data augmentation if requested
+    if augment:
+        logger.info(f"Applying data augmentation with factor {augmentation_factor}...")
+        augmented_images, augmented_labels = preprocessor.create_augmented_dataset(
+            images, labels, augmentation_params, augmentation_factor
+        )
+        
+        logger.info(f"Original dataset: {len(images)} images")
+        logger.info(f"Augmented dataset: {len(augmented_images)} images")
+        
+        # Visualize augmented samples
+        logger.info("Visualizing augmented sample images...")
+        # Show only the augmented versions (exclude original images)
+        aug_only_images = augmented_images[len(images):]
+        aug_only_labels = augmented_labels[len(labels):]
+        if len(aug_only_images) > 0:
+            preprocessor.visualize_samples(aug_only_images, aug_only_labels, 
+                                         num_samples=16, class_names=class_names)
+        
+        # Save augmented images to disk if requested
+        if save_augmented:
+            logger.info("Saving augmented dataset to disk...")
+            save_augmented_dataset(augmented_images, augmented_labels, output_dir, 
+                                 class_names, class_mapping)
+        
+        # Save dataset information for augmented dataset
+        preprocessor.save_dataset_info(augmented_images, augmented_labels, output_dir)
+        
+    else:
+        # Save dataset information for original dataset only
+        preprocessor.save_dataset_info(images, labels, output_dir)
     
-    logger.info("Dataset analysis completed!")
-    logger.info("The model will load images directly from the folder structure.")
-    logger.info("No need to create HDF5 files - this is more flexible and memory efficient.")
+    logger.info("Dataset preprocessing completed!")
+    if augment and save_augmented:
+        logger.info(f"Augmented images saved to: {output_dir}")
+    logger.info("The model can load images directly from the folder structure.")
+
+
+def save_augmented_dataset(images: np.ndarray, labels: np.ndarray, 
+                          output_dir: str, class_names: dict, class_mapping: dict):
+    """
+    Save augmented dataset to disk in organized folder structure.
+    
+    Args:
+        images: Augmented image array
+        labels: Corresponding labels
+        output_dir: Output directory
+        class_names: Mapping from class indices to names
+        class_mapping: Original class mapping
+    """
+    # Create augmented dataset directory
+    augmented_dir = os.path.join(output_dir, 'augmented_dataset')
+    os.makedirs(augmented_dir, exist_ok=True)
+    
+    # Create class directories
+    reverse_mapping = {v: k for k, v in class_mapping.items()}
+    class_counters = {label: 0 for label in np.unique(labels)}
+    
+    for label in np.unique(labels):
+        class_dir_name = reverse_mapping.get(label, f'class_{label}')
+        class_dir = os.path.join(augmented_dir, class_dir_name)
+        os.makedirs(class_dir, exist_ok=True)
+    
+    # Save images
+    logger.info(f"Saving {len(images)} images to {augmented_dir}...")
+    
+    for i, (image, label) in enumerate(zip(images, labels)):
+        class_dir_name = reverse_mapping.get(label, f'class_{label}')
+        class_dir = os.path.join(augmented_dir, class_dir_name)
+        
+        # Generate filename
+        filename = f"{class_dir_name}_{class_counters[label]:06d}.jpg"
+        filepath = os.path.join(class_dir, filename)
+        
+        # Convert RGB to BGR for OpenCV
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(filepath, image_bgr)
+        
+        class_counters[label] += 1
+        
+        if (i + 1) % 1000 == 0:
+            logger.info(f"Saved {i + 1}/{len(images)} images")
+    
+    logger.info(f"All augmented images saved to: {augmented_dir}")
+    logger.info("Class distribution in saved dataset:")
+    for label, count in class_counters.items():
+        class_name = class_names.get(label, f'Class_{label}')
+        logger.info(f"  {class_name}: {count} images")
 
 
 def main():
@@ -319,9 +464,13 @@ def main():
     parser.add_argument('--input', '-i', type=str, required=True,
                        help='Input directory containing class subdirectories')
     parser.add_argument('--output', '-o', type=str, required=True,
-                       help='Output directory for dataset info')
+                       help='Output directory for dataset info and augmented images')
     parser.add_argument('--no-augment', action='store_true',
-                       help='Disable data augmentation (info only)')
+                       help='Disable data augmentation')
+    parser.add_argument('--augmentation-factor', type=int, default=3,
+                       help='Number of augmented versions per original image (default: 3)')
+    parser.add_argument('--save-augmented', action='store_true',
+                       help='Save augmented images to disk')
     parser.add_argument('--target-size', type=int, nargs=2, default=[64, 64],
                        help='Target image size (width height)')
     parser.add_argument('--visualize', action='store_true',
@@ -333,7 +482,9 @@ def main():
     prepare_chinese_gesture_dataset(
         root_dir=args.input,
         output_dir=args.output,
-        augment=not args.no_augment
+        augment=not args.no_augment,
+        augmentation_factor=args.augmentation_factor,
+        save_augmented=args.save_augmented
     )
 
 
