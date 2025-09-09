@@ -1,6 +1,10 @@
 datasets
 # models
 */__pycache__/*
+__pycache__/
+/__pycache__/
+*__pycache__*
+__pycache__*
 captured_images
 Chinese-number-gestures-recognition/digital_gesture_recognition/resized_img
 Chinese-number-gestures-recognition/digital_gesture_recognition/resized_img_split
