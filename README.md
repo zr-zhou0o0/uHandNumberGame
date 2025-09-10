@@ -52,18 +52,19 @@
 - python到arduino的串口通信
     - 使用pyserial库实现
 - 游戏逻辑
-    - 通过python实现游戏逻辑
-        - 调用 gesture recognition 脚本 和 get img 脚本，得到实时的手势信息
-        - 向 arduino 输出一个元组 (number, music) 其中 number 代表预先设置好的动作索引，music 代表预先设置好的提示音索引
+    - 通过python实现碰数游戏逻辑
+        - 识别输入：调用 gesture recognition 脚本，得到实时的手势信息；手势识别，维持同一个有效数字超过3秒钟则判定输入
+        - 串口通信： serial command脚本：向 arduino 输出一个编号 在arduino中执行编号对应的动作策略和提示音
         - （按键重定义 & 回传：红色代表重新开始游戏，黄色代表暂停游戏）
     - 1 对 1
-        - 开始游戏：开始手势，开始提示音，然后摆成1的动作
-        - 维护一个列表 自身数字、对手左手、对手右手数字
-        - 识别输入：维持同一个有效数字超过3秒钟则判定输入，发出回合提示音；若对方输入是0，则游戏结束，失败提示音 & 动作
-        - 加法取余：输入与自身数字相加并取余
-    	- 游戏结束判定：若自身取余后是0，则游戏结束，胜利提示音 & 动作
+        - 开始游戏：串口输出11，代表开始手势，开始提示音，然后摆成1的动作
+        - 维护一个列表 自身数字、对手左手、对手右手数字 
+        - 然后开始等待识别输入
+        - 加法取余：一旦识别到输入，则输入数字与自身数字相加并取余，并更新列表
+        - 若对方输入是0，则游戏结束，串口输出10，失败提示音 & 动作
+    	- 若自身相加取余后是0，则游戏结束，串口输出0，胜利提示音 & 动作
+    	- 否则，就摆出更新后的自身数字手势（1~9，对应串口编号也为1~9），并开始下一轮游戏
     - 1 对 2
-        - 
 	
 - 蜂鸣器
     - 游戏开始 提示音 1
@@ -74,6 +75,8 @@
 
 ## **环境**
 conda activate handgesture-medi
+连接串口，关闭arduino的串口监视器
+连接摄像头网络，启动视频流，关闭网页
 
 
 ## **获取图像**
@@ -102,7 +105,13 @@ python inference.py --model models\best-7297\cnn_gesture_best.pth --mode image -
 
 ## **gesture recognition**
 python scripts\gesture_recognition_opencv\gesture_recognition.py
+python scripts\gesture_recognition_opencv\gesture_recognition_timeout.py
 
 
+## **serial command**
+python scripts\serial\serial_command.py
 
+
+## **play**
+python scripts\game\game.py
 
