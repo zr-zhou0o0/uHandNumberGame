@@ -72,8 +72,7 @@ class NumberGame:
         # 输入识别状态
         self.current_input_left = -1  # 当前识别的数字
         self.current_input_right = -1  # 当前识别的数字
-        self.input_start_time_left = 0  # 开始识别时间
-        self.input_start_time_right = 0  # 开始识别时间
+        self.input_start_time = 0  # 开始识别时间
         self.input_stable_time = 3.0  # 需要保持3秒
         self.last_detection_time = 0
         self.detection_interval = 1.0  # 1秒检测一次
@@ -281,32 +280,38 @@ class NumberGame:
 
         confirmed_input_left = -2
         confirmed_input_right = -2
+
+        # confirm input 程序不能分成两个，否则会不同步confirm；一个confirm之后清空了，另一个再confirm，就不行。
         
         # 检查left输入稳定性
-        if left_num == self.current_input_left:
-            if current_time - self.input_start_time_left >= self.input_stable_time:
+        if left_num == self.current_input_left and right_num == self.current_input_right:
+            if current_time - self.input_start_time >= self.input_stable_time:
                 # 输入稳定超过3秒，确认输入
                 confirmed_input_left = self.current_input_left
+                confirmed_input_right = self.current_input_right
                 self.current_input_left = -2  # -1 是没有手 -2 是禁止输入
-                self.input_start_time_left = 0
+                self.current_input_right = -1
+                self.input_start_time = 0
         else:
             # 输入改变，重新开始计时
             self.current_input_left = left_num
-            self.input_start_time_left = current_time
-            confirmed_input_left = -2
-
-        # 检查right输入稳定性
-        if right_num == self.current_input_right:
-            if current_time - self.input_start_time_right >= self.input_stable_time:
-                # 输入稳定超过3秒，确认输入
-                confirmed_input_right = self.current_input_right
-                self.current_input_right = -2  
-                self.input_start_time_right = 0
-        else:
-            # 输入改变，重新开始计时
             self.current_input_right = right_num
-            self.input_start_time_right = current_time
+            self.input_start_time = current_time
+            confirmed_input_left = -2
             confirmed_input_right = -2
+
+        # # 检查right输入稳定性
+        # if right_num == self.current_input_right:
+        #     if current_time - self.input_start_time_right >= self.input_stable_time:
+        #         # 输入稳定超过3秒，确认输入
+        #         confirmed_input_right = self.current_input_right
+        #         self.current_input_right = -2  
+        #         self.input_start_time_right = 0
+        # else:
+        #     # 输入改变，重新开始计时
+        #     self.current_input_right = right_num
+        #     self.input_start_time_right = current_time
+        #     confirmed_input_right = -2
 
         if confirmed_input_right != -2 and confirmed_input_left != -2:
             if confirmed_input_right == -1 and confirmed_input_left != -1:
@@ -319,6 +324,10 @@ class NumberGame:
                 if (self.my_number + confirmed_input_right) % 10 == 0:
                     detected_number = confirmed_input_right
                 elif (self.my_number + confirmed_input_left) % 10 == 0:
+                    detected_number = confirmed_input_left
+                elif confirmed_input_left == 0:
+                    detected_number = confirmed_input_right
+                elif confirmed_input_right == 0:
                     detected_number = confirmed_input_left
                 else:
                     # detected_number = random.choice([left_num, right_num]) # 这样会导致不连续
@@ -603,8 +612,17 @@ class NumberGame:
             # 处理游戏逻辑
             if self.game_state == GameState.WAITING_INPUT:
                 confirmed_input, confirm_left, confirm_right = self.process_input(left_num, right_num)
+                if confirm_left != -1 and confirm_left != -2:
+                    print(f"************** Confirm Left *********************")
+                    print(f"left: {confirm_left}")
+                if confirm_right != -1 and confirm_right != -2:
+                    print(f"************** Confirm Right ********************")
+                    print(f"right: {confirm_right}")
                 if confirmed_input != -1:
-                    print(f"************** execuate game ********************")
+                    print(f"************** Execuate Game ********************")
+                    print(f"confirm input: {confirmed_input}")
+                    print(f"上次检测左手输入: {self.opponent_last_time[0]}")
+                    print(f"上次检测右手输入: {self.opponent_last_time[1]}")
                     if confirm_left != self.opponent_last_time[0] or confirm_right != self.opponent_last_time[1]:
                         # 和上次输入有差别才算做一次新的输入
                         self.opponent_last_time[0] = confirm_left
@@ -643,12 +661,12 @@ class NumberGame:
                 print(f"机械手状态: {self.my_number}")
                 print(f"对手左手: {left_num}")
                 print(f"对手右手: {right_num}")
-                print(f"上次检测时间: {self.last_time_detect_number[0]}")
-                print(f"confirm_input: {confirmed_input}")
-                print(f"confirm_right: {confirm_right}")
-                print(f"confirm_left: {confirm_left}")
-                print(f"上次检测左手输入: {self.opponent_last_time[0]}")
-                print(f"上次检测右手输入: {self.opponent_last_time[1]}")
+                # print(f"上次检测时间: {self.last_time_detect_number[0]}")
+                # print(f"confirm_input: {confirmed_input}")
+                # print(f"confirm_right: {confirm_right}")
+                # print(f"confirm_left: {confirm_left}")
+                # print(f"上次检测左手输入: {self.opponent_last_time[0]}")
+                # print(f"上次检测右手输入: {self.opponent_last_time[1]}")
 
         
         # # 清理资源
