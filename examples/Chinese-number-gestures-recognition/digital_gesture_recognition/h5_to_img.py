@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from machine_learning.deep_neural_network.digital_gesture_recognition.cnn import load_dataset
+from digital_gesture_recognition.cnn import load_dataset
 
 
 X_train_orig, Y_train_orig, X_test_orig, Y_test_orig, classes = load_dataset()

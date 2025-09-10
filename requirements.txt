@@ -1,4 +1,20 @@
-opencv-python==4.8.1.78
-requests==2.31.0
-Pillow==10.0.1
-numpy==1.24.3
+# python 3.8
+# Incompatible
+# opencv-python==4.8.1.78
+# requests==2.31.0
+# Pillow==10.0.1
+# numpy==1.24.3
+# # mediapipe==0.10.8
+# mediapipe==0.9.1 # 不兼容
+
+
+# python 3.12
+# handgesture-medi 
+mediapipe==0.10.21
+opencv-python==4.12.0.88
+numpy==2.2.6
+
+pyserial
+serial
+# 如果报错 Serial port error: could not open port 'COM19': PermissionError(13, '拒绝访问。', None, 5)
+# 原因是arduino的串口监视器占用了port,导致Py脚本串口发送时无法打开port,关闭所有的arduino的串口监视器即可。
