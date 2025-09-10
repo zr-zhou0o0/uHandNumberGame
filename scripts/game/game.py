@@ -155,20 +155,6 @@ class NumberGame:
         
         else:
             return None
-        
-    # def init_camera(self):
-    #     """初始化摄像头"""
-    #     try:
-    #         # self.cap = cv2.VideoCapture(self.stream_url)
-    #         self.cap = self.init_video_capture()
-    #         if not self.cap.isOpened():
-    #             print("错误：无法连接到视频流")
-    #             return False
-    #         print("视频流连接成功")
-    #         return True
-    #     except Exception as e:
-    #         print(f"摄像头初始化失败: {e}")
-    #         return False
     
     def init_mediapipe(self):
         """初始化MediaPipe"""
@@ -299,19 +285,6 @@ class NumberGame:
             self.input_start_time = current_time
             confirmed_input_left = -2
             confirmed_input_right = -2
-
-        # # 检查right输入稳定性
-        # if right_num == self.current_input_right:
-        #     if current_time - self.input_start_time_right >= self.input_stable_time:
-        #         # 输入稳定超过3秒，确认输入
-        #         confirmed_input_right = self.current_input_right
-        #         self.current_input_right = -2  
-        #         self.input_start_time_right = 0
-        # else:
-        #     # 输入改变，重新开始计时
-        #     self.current_input_right = right_num
-        #     self.input_start_time_right = current_time
-        #     confirmed_input_right = -2
 
         if confirmed_input_right != -2 and confirmed_input_left != -2:
             if confirmed_input_right == -1 and confirmed_input_left != -1:
@@ -688,72 +661,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # game = NumberGame()
-   
-    # cap = game.init_video_capture()
-    # # cap = cv2.VideoCapture(stream_url)
-    # # cap = cv2.VideoCapture(0)
-    # # cap.set(3, 640)  # 设置帧宽度
-    # # cap.set(4, 480)  # 设置帧高度
-
-    # # 检查视频流是否成功打开
-    # if not cap.isOpened():
-    #     print("错误：无法连接到视频流")
-    # else:
-    #     print("成功连接到视频流")
-
-    # print("初始化MediaPipe...")
-    # mpHand = mp.solutions.hands
-    # hands = mpHand.Hands(
-    #     static_image_mode=False,
-    #     max_num_hands=2,
-    #     min_detection_confidence=0.5,
-    #     min_tracking_confidence=0.5
-    # )
-    # mpDraw = mp.solutions.drawing_utils
-
-    # #  ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
-    # tipIds = [4, 8, 12, 16, 20]  # 指尖关键点索引
-    # thumbIds = [2, 3, 4]  # 拇指关键点索引
-    # indexIds = [5, 6, 7, 8]  # 食指关键点索引
-    # middleIds = [9, 10, 11, 12]  # 中指关键点索引
-    # ringIds = [13, 14, 15, 16]  # 无名指关键点索引
-    # pinkyIds = [17, 18, 19, 20]  # 小指关键点索引
-
-    # frame_count = 0
-    # last_detection_time = 0  # 上次检测时间
-    # # detection_interval = 0.5  # 检测间隔（秒）
-    # detection_interval = 0.1  # 检测间隔（秒）
-
-    # while True:
-    #     current_time = time.time()
-    #     success, img = cap.read()
-
-    #     if not success:
-    #         print(f"错误：无法读取视频帧 (第{frame_count}帧)")
-    #         break
-
-    #     if current_time - last_detection_time < detection_interval:
-    #         # 等待0.1秒
-    #         time.sleep(0.02)
-    #         continue
-
-    #     last_detection_time = current_time
-    #     frame_count += 1
-    #     print(f"进行手势检测 (第{frame_count}帧)")
-        
-    #     imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    #     results = hands.process(imgRGB)
-
-      
-
-    #     cv2.imshow('Hand Gesture Recognition', img)
-    #     print("成功显示图像")
-
-    #     key = cv2.waitKey(1) & 0xFF # 居然没有这个waitkey 就显示不出来视频！！！！！！！！
-    #     if key == ord('q'):
-    #         print("用户按下 'q' 键，退出程序")
-    #         break
-    #     elif key != 255:  # 如果有其他按键被按下
-    #         print(f"按键被按下: {chr(key)} (ASCII: {key})")
-       
