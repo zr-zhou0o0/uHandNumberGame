@@ -5,6 +5,7 @@ import serial
 import random
 import threading
 from enum import Enum
+import json
 
 print(f"OpenCV版本: {cv2.__version__}")
 print(f"MediaPipe版本: {mp.__version__}")
@@ -28,6 +29,20 @@ middleIds = [9, 10, 11, 12]  # 中指关键点索引
 ringIds = [13, 14, 15, 16]  # 无名指关键点索引
 pinkyIds = [17, 18, 19, 20]  # 小指关键点索引
 
+loss_states = [
+    (2, 3, 5),
+    (2, 5, 3),
+    (4, 1, 5),
+    (4, 5, 1),
+    (6, 5, 9),
+    (6, 9, 5),
+    (8, 5, 7),
+    (8, 7, 5),
+    (1, 7, 7),
+    (3, 1, 1),
+    (7, 9, 9),
+    (9, 3, 3),
+]
 
 class NumberGame:
     def __init__(self):
@@ -82,6 +97,9 @@ class NumberGame:
         self.round_count = 0
 
         self.last_time_detect_number = [0,0,0,0]
+
+        with open(r'scripts\game\one_two_enum.json', 'r', encoding='utf-8') as f:
+            self.enum_dict = json.load(f)
         
     def init_serial(self):
         """初始化串口通信"""
@@ -255,6 +273,64 @@ class NumberGame:
         
         return left_hand_number, right_hand_number
     
+    def query_enum_dict(self, a, b, c):
+        """
+        通过三个数字索引one_two_enum.json，返回"0"和"1"中值较大的key（相等时优先返回"0"）。
+        """
+        key = str([a, b, c])
+        if key not in self.enum_dict:
+            return None  # 或 raise KeyError(f"未找到键: {key}")
+        d = self.enum_dict[key]
+        v0 = d.get("0", float('-inf'))
+        v1 = d.get("1", float('-inf'))
+        if v0 >= v1:
+            return 0
+        else:
+            return 1
+
+    def choose(self, my_number, left_num, right_num):
+
+        a = my_number
+        b = left_num
+        c = right_num
+
+        # 如果是收手回合
+        if a + b + c == 10 or a + b + c == 20 or (2*b + a == 10 and 2*c + a == 20) or (2*b + a == 20 and 2*c + a == 10):
+            print("玩家收手回合")
+            choice = self.query_enum_dict(a, b, c)
+
+        # 普通回合
+        else:
+            print("普通回合")
+            s1 = ((a + b) % 10, (a + 2 * b) % 10, c)
+            s2 = ((a + b) % 10, b, (a + b + c) % 10)
+            s3 = ((a + c) % 10, (a + b + c) % 10, c)
+            s4 = ((a + c) % 10, b, (a + 2 * c) % 10)
+
+            if s1 not in loss_states and s2 not in loss_states and s3 not in loss_states and s4 not in loss_states:
+                print("无必输状态")
+                choice = self.choice  # 随机选择
+            elif s1 not in loss_states and s2 not in loss_states:
+                print("避开必输状态，选择左手")
+                choice = 0
+            elif s3 not in loss_states and s4 not in loss_states:
+                print("避开必输状态，选择右手")
+                choice = 1
+            else:
+                print("无可避开必输状态，随机选择")
+                choice = self.choice  # 随机选择
+
+        if choice is None:
+            print(f"警告: 未找到枚举值 [{a}, {b}, {c}]，使用随机选择的结果")
+            choice = self.choice
+        
+        if choice == 0:
+            num = left_num
+        else:
+            num = right_num
+
+        return num
+    
     def process_input(self, left_num, right_num):
         """处理输入，检查是否稳定"""
         # -1 是没有手 -2 是无效
@@ -303,34 +379,14 @@ class NumberGame:
                 elif confirmed_input_right == 0:
                     detected_number = confirmed_input_left
                 else:
-                    # detected_number = random.choice([left_num, right_num]) # 这样会导致不连续
-                    if self.choice == 0:
-                        detected_number = confirmed_input_left
-                    else:
-                        detected_number = confirmed_input_right
+                    # HERE
+                    detected_number = self.choose(self.my_number, confirmed_input_left, confirmed_input_right)
         else:
             detected_number = -1
         
         self.last_time_detect_number[3] = detected_number
 
         return detected_number, confirmed_input_left, confirmed_input_right
-        
-        # 只有一个detectnumber的逻辑
-        # 检查输入稳定性
-        # if detected_number != -1 and detected_number == self.current_input:
-        #     # 继续保持相同输入
-        #     if current_time - self.input_start_time >= self.input_stable_time:
-        #         # 输入稳定超过3秒，确认输入
-        #         confirmed_input = self.current_input
-        #         self.current_input = -1  # 重置
-        #         self.input_start_time = 0
-        #         return confirmed_input, detected_number
-        # else:
-        #     # 输入改变，重新开始计时
-        #     self.current_input = detected_number
-        #     self.input_start_time = current_time
-        
-        # return -1, detected_number  # 还未确认
     
     def start_game(self):
         print("=== 开始新游戏 ===")
