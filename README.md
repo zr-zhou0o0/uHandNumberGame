@@ -149,3 +149,5 @@ python scripts\serial\serial_command.py
 ## **play**
 python scripts\game\game.py
 
+python scripts\game\game_advanced.py
+
